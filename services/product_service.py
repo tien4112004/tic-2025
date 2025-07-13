@@ -1,165 +1,183 @@
 import os
 import httpx
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from decimal import Decimal
 from datetime import datetime
+from sqlalchemy import select, func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product import ProductResponse, ProductFilters, ProductListResponse, PaginationMeta, SortBy, SortOrder
+from database.connection import Product, ProductImage, AsyncSessionLocal
 
 class ProductService:
     def __init__(self):
         self.api_base_url = os.getenv("ECOMMERCE_API_BASE_URL", "")
         self.api_key = os.getenv("ECOMMERCE_API_KEY", "")
-        self._mock_products = self._generate_mock_products()
     
     async def get_products_by_ids(self, product_ids: List[str]) -> List[ProductResponse]:
-        # Mock implementation for now - replace with actual API calls
-        mock_products = []
-        
-        genders = ["Men", "Women", "Unisex"]
-        categories = ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
-        sub_categories = ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
-        product_types = ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
-        colours = ["Black", "White", "Blue", "Red", "Green", "Gray"]
-        
-        for i, product_id in enumerate(product_ids):
-            product = ProductResponse(
-                id=product_id,
-                name=f"Product {product_id}",
-                price=Decimal("29.99"),
-                image_url="https://example.com/product.jpg",
-                description=f"Description for {product_id}",
-                category=categories[i % len(categories)],
-                gender=genders[i % len(genders)],
-                sub_category=sub_categories[i % len(sub_categories)],
-                product_type=product_types[i % len(product_types)],
-                colour=colours[i % len(colours)],
-                in_stock=True,
-                similarity_score=0.95 - (i * 0.05)
+        async with AsyncSessionLocal() as session:
+            # Query products by product_id
+            stmt = (
+                select(Product, ProductImage.image_url)
+                .outerjoin(ProductImage, (Product.id == ProductImage.product_id) & (ProductImage.is_primary == True))
+                .where(Product.product_id.in_(product_ids))
             )
-            mock_products.append(product)
-        
-        return mock_products
+            result = await session.execute(stmt)
+            rows = result.all()
+            
+            products = []
+            for i, (product, image_url) in enumerate(rows):
+                similarity_score = 0.95 - (i * 0.05) if i < len(product_ids) else 0.5
+                
+                product_response = ProductResponse(
+                    id=product.product_id,
+                    name=product.product_title,
+                    price=product.price,
+                    image_url=image_url or "https://example.com/placeholder.jpg",
+                    description=product.description,
+                    category=product.category,
+                    gender=product.gender,
+                    sub_category=product.sub_category,
+                    product_type=product.product_type,
+                    colour=product.colour,
+                    in_stock=product.in_stock,
+                    similarity_score=similarity_score,
+                    created_at=product.created_at.isoformat() if product.created_at else None
+                )
+                products.append(product_response)
+            
+            return products
     
     async def get_products(self, filters: ProductFilters) -> ProductListResponse:
-        # Filter products based on criteria
-        filtered_products = self._filter_products(self._mock_products, filters)
-        
-        # Calculate pagination
-        total_items = len(filtered_products)
-        total_pages = math.ceil(total_items / filters.page_size)
-        start_idx = (filters.page - 1) * filters.page_size
-        end_idx = start_idx + filters.page_size
-        
-        # Get page slice
-        page_products = filtered_products[start_idx:end_idx]
-        
-        # Create pagination metadata
-        pagination = PaginationMeta(
-            page=filters.page,
-            page_size=filters.page_size,
-            total_items=total_items,
-            total_pages=total_pages,
-            has_next=filters.page < total_pages,
-            has_previous=filters.page > 1
-        )
-        
-        return ProductListResponse(
-            products=page_products,
-            pagination=pagination,
-            filters_applied=filters
-        )
-    
-    def _filter_products(self, products: List[ProductResponse], filters: ProductFilters) -> List[ProductResponse]:
-        filtered = products.copy()
-        
-        # Search filter
-        if filters.search:
-            search_term = filters.search.lower()
-            filtered = [
-                p for p in filtered 
-                if search_term in p.name.lower() or 
-                   (p.description and search_term in p.description.lower())
-            ]
-        
-        # Gender filter
-        if filters.gender:
-            filtered = [p for p in filtered if p.gender == filters.gender]
-        
-        # Category filter
-        if filters.category:
-            filtered = [p for p in filtered if p.category == filters.category]
-        
-        # Sub-category filter
-        if filters.sub_category:
-            filtered = [p for p in filtered if p.sub_category == filters.sub_category]
-        
-        # Product type filter
-        if filters.product_type:
-            filtered = [p for p in filtered if p.product_type == filters.product_type]
-        
-        # Colour filter
-        if filters.colour:
-            filtered = [p for p in filtered if p.colour == filters.colour]
-        
-        # Price filters
-        if filters.min_price is not None:
-            filtered = [p for p in filtered if p.price >= filters.min_price]
-        
-        if filters.max_price is not None:
-            filtered = [p for p in filtered if p.price <= filters.max_price]
-        
-        # Stock filter
-        if filters.in_stock is not None:
-            filtered = [p for p in filtered if p.in_stock == filters.in_stock]
-        
-        # Sort products
-        filtered = self._sort_products(filtered, filters.sort_by, filters.sort_order)
-        
-        return filtered
-    
-    def _sort_products(self, products: List[ProductResponse], sort_by: SortBy, sort_order: SortOrder) -> List[ProductResponse]:
-        reverse = sort_order == SortOrder.desc
-        
-        if sort_by == SortBy.name:
-            return sorted(products, key=lambda p: p.name.lower(), reverse=reverse)
-        elif sort_by == SortBy.price:
-            return sorted(products, key=lambda p: p.price, reverse=reverse)
-        elif sort_by == SortBy.created_at:
-            return sorted(products, key=lambda p: p.created_at or "", reverse=reverse)
-        elif sort_by == SortBy.popularity:
-            # Mock popularity sorting by product ID
-            return sorted(products, key=lambda p: p.id, reverse=reverse)
-        
-        return products
-    
-    def _generate_mock_products(self) -> List[ProductResponse]:
-        categories = ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
-        genders = ["Men", "Women", "Unisex"]
-        sub_categories = ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
-        product_types = ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
-        colours = ["Black", "White", "Blue", "Red", "Green", "Gray"]
-        
-        products = []
-        for i in range(1, 101):  # Generate 100 mock products
-            product = ProductResponse(
-                id=f"prod_{i:03d}",
-                name=f"Product {i}",
-                price=Decimal(str(round(10 + (i * 2.5), 2))),
-                image_url=f"https://example.com/product_{i}.jpg",
-                description=f"High quality product {i} with excellent features and performance",
-                category=categories[i % len(categories)],
-                gender=genders[i % len(genders)],
-                sub_category=sub_categories[i % len(sub_categories)],
-                product_type=product_types[i % len(product_types)],
-                colour=colours[i % len(colours)],
-                in_stock=i % 7 != 0,  # Some products out of stock
-                created_at=f"2024-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}T10:00:00Z"
+        async with AsyncSessionLocal() as session:
+            # Build the base query
+            query = (
+                select(Product, ProductImage.image_url)
+                .outerjoin(ProductImage, (Product.id == ProductImage.product_id) & (ProductImage.is_primary == True))
             )
-            products.append(product)
-        
-        return products
+            
+            # Apply filters
+            conditions = []
+            
+            if filters.search:
+                search_term = f"%{filters.search.lower()}%"
+                conditions.append(
+                    or_(
+                        func.lower(Product.product_title).like(search_term),
+                        func.lower(Product.description).like(search_term)
+                    )
+                )
+            
+            if filters.gender:
+                conditions.append(Product.gender == filters.gender)
+            
+            if filters.category:
+                conditions.append(Product.category == filters.category)
+            
+            if filters.sub_category:
+                conditions.append(Product.sub_category == filters.sub_category)
+            
+            if filters.product_type:
+                conditions.append(Product.product_type == filters.product_type)
+            
+            if filters.colour:
+                conditions.append(Product.colour == filters.colour)
+            
+            if filters.min_price is not None:
+                conditions.append(Product.price >= filters.min_price)
+            
+            if filters.max_price is not None:
+                conditions.append(Product.price <= filters.max_price)
+            
+            if filters.in_stock is not None:
+                conditions.append(Product.in_stock == filters.in_stock)
+            
+            # Apply all conditions
+            if conditions:
+                query = query.where(*conditions)
+            
+            # Apply sorting
+            if filters.sort_by == SortBy.name:
+                order_col = Product.product_title
+            elif filters.sort_by == SortBy.price:
+                order_col = Product.price
+            elif filters.sort_by == SortBy.created_at:
+                order_col = Product.created_at
+            else:  # popularity - use created_at as fallback
+                order_col = Product.created_at
+            
+            if filters.sort_order == SortOrder.desc:
+                query = query.order_by(order_col.desc())
+            else:
+                query = query.order_by(order_col.asc())
+            
+            # Get total count for pagination
+            count_query = select(func.count()).select_from(query.subquery())
+            total_result = await session.execute(count_query)
+            total_items = total_result.scalar()
+            
+            # Apply pagination
+            offset = (filters.page - 1) * filters.page_size
+            query = query.offset(offset).limit(filters.page_size)
+            
+            # Execute query
+            result = await session.execute(query)
+            rows = result.all()
+            
+            # Convert to ProductResponse objects
+            products = []
+            for product, image_url in rows:
+                product_response = ProductResponse(
+                    id=product.product_id,
+                    name=product.product_title,
+                    price=product.price,
+                    image_url=image_url or "https://example.com/placeholder.jpg",
+                    description=product.description,
+                    category=product.category,
+                    gender=product.gender,
+                    sub_category=product.sub_category,
+                    product_type=product.product_type,
+                    colour=product.colour,
+                    in_stock=product.in_stock,
+                    created_at=product.created_at.isoformat() if product.created_at else None
+                )
+                products.append(product_response)
+            
+            # Calculate pagination metadata
+            total_pages = math.ceil(total_items / filters.page_size)
+            pagination = PaginationMeta(
+                page=filters.page,
+                page_size=filters.page_size,
+                total_items=total_items,
+                total_pages=total_pages,
+                has_next=filters.page < total_pages,
+                has_previous=filters.page > 1
+            )
+            
+            return ProductListResponse(
+                products=products,
+                pagination=pagination,
+                filters_applied=filters
+            )
+    
+    async def get_available_filters(self) -> dict:
+        """Get available filter options from database"""
+        async with AsyncSessionLocal() as session:
+            # Get distinct values for filter options
+            genders_result = await session.execute(select(Product.gender).distinct().where(Product.gender.isnot(None)))
+            categories_result = await session.execute(select(Product.category).distinct().where(Product.category.isnot(None)))
+            sub_categories_result = await session.execute(select(Product.sub_category).distinct().where(Product.sub_category.isnot(None)))
+            product_types_result = await session.execute(select(Product.product_type).distinct().where(Product.product_type.isnot(None)))
+            colours_result = await session.execute(select(Product.colour).distinct().where(Product.colour.isnot(None)))
+            
+            return {
+                "genders": sorted([g[0] for g in genders_result.all() if g[0]]),
+                "categories": sorted([c[0] for c in categories_result.all() if c[0]]),
+                "subcategories": sorted([sc[0] for sc in sub_categories_result.all() if sc[0]]),
+                "product_types": sorted([pt[0] for pt in product_types_result.all() if pt[0]]),
+                "colours": sorted([co[0] for co in colours_result.all() if co[0]])
+            }
     
     async def _fetch_from_api(self, product_ids: List[str]) -> List[ProductResponse]:
         # Placeholder for actual API integration
