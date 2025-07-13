@@ -30,7 +30,7 @@ services:
         - BUILDKIT_INLINE_CACHE=1
     container_name: ecommerce_api
     environment:
-      - DATABASE_URL=postgresql://ecommerce_user:ecommerce_password@postgres:5432/ecommerce_db
+      - DATABASE_URL=postgresql+asyncpg://ecommerce_user:ecommerce_password@postgres:5432/ecommerce_db
       - PINECONE_API_KEY=${PINECONE_API_KEY:-}
       - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-product_images}

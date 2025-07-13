@@ -155,33 +155,28 @@ async def get_products(
 
 @app.get("/products/categories")
 async def get_categories():
-    return {
-        "categories": ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
-    }
+    filters = await product_service.get_available_filters()
+    return {"categories": filters["categories"]}
 
 @app.get("/products/genders")
 async def get_genders():
-    return {
-        "genders": ["Men", "Women", "Unisex"]
-    }
+    filters = await product_service.get_available_filters()
+    return {"genders": filters["genders"]}
 
 @app.get("/products/subcategories")
 async def get_subcategories():
-    return {
-        "subcategories": ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
-    }
+    filters = await product_service.get_available_filters()
+    return {"subcategories": filters["subcategories"]}
 
 @app.get("/products/product-types")
 async def get_product_types():
-    return {
-        "product_types": ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
-    }
+    filters = await product_service.get_available_filters()
+    return {"product_types": filters["product_types"]}
 
 @app.get("/products/colours")
 async def get_colours():
-    return {
-        "colours": ["Black", "White", "Blue", "Red", "Green", "Gray"]
-    }
+    filters = await product_service.get_available_filters()
+    return {"colours": filters["colours"]}
 
 @app.post("/search/image", response_model=List[ProductResponse])
 async def search_by_image(file: UploadFile = File(...)):

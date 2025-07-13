@@ -7,7 +7,7 @@ from sqlalchemy.sql import func
 import uuid
 
 # Database URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://ecommerce_user:ecommerce_password@localhost:5432/ecommerce_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://ecommerce_user:ecommerce_password@postgres:5432/ecommerce_db")
 
 # Create async engine
 engine = create_async_engine(DATABASE_URL, echo=True)
