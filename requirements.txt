@@ -8,6 +8,9 @@ httpx
 python-dotenv
 requests
 asyncpg
-sqlalchemy[asyncio]==2.0.25
+sqlalchemy[asyncio]
 alembic
+sentence-transformers
+torch
+deep-translator
 psycopg2-binary

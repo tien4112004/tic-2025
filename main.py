@@ -8,11 +8,13 @@ import os
 import logging
 from dotenv import load_dotenv
 from decimal import Decimal
+import math
 
 from models.product import (
     ProductResponse, 
     ProductListResponse, 
     ProductFilters, 
+    PaginationMeta,
     SortBy, 
     SortOrder
 )
@@ -20,6 +22,7 @@ from models.errors import ErrorResponse, ValidationErrorResponse, ErrorDetail
 from services.image_search_service import ImageSearchService
 from services.product_service import ProductService
 from services.exceptions import APIError, ValidationError, InvalidImageError, NotFoundError
+from main_ml_service import MultiModalSearchService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -85,6 +88,7 @@ app.add_middleware(
 
 image_search_service = ImageSearchService()
 product_service = ProductService()
+ml_search_service = MultiModalSearchService()
 
 @app.get("/")
 async def root():
@@ -145,11 +149,46 @@ async def get_products(
         sort_order=sort_order,
         page=page,
         page_size=page_size
-    )
-    
+    )    
+
     try:
-        result = await product_service.get_products(filters)
-        return result
+        # Get regular database search results
+        db_result = await product_service.get_products(filters)
+        
+        # If there's a search query, also perform ML text search
+        if search and search.strip():
+            try:
+                logger.info(f"Performing ML text search for query: {search}")
+                # Get ML search results (product IDs)
+                ml_product_ids = ml_search_service.search_by_text(search, top_k=10)
+                
+                if ml_product_ids:
+                    # Get product details for ML results
+                    ml_products = await product_service.get_products_by_ids(ml_product_ids)
+                    
+                    # Apply the same filters to ML results (except search)
+                    filtered_ml_products = _apply_filters_to_products(ml_products, filters)
+                    
+                    # Merge results: prioritize ML results, then add unique DB results
+                    merged_products = _merge_search_results(filtered_ml_products, db_result.products)
+                    
+                    # Apply pagination to merged results
+                    paginated_products, updated_pagination = _paginate_merged_results(
+                        merged_products, filters.page, filters.page_size
+                    )
+                    
+                    logger.info(f"Merged search results: {len(paginated_products)} products")
+                    return ProductListResponse(
+                        products=paginated_products,
+                        pagination=updated_pagination,
+                        filters_applied=filters
+                    )
+                else:
+                    logger.info("No ML search results found, returning database results only")
+            except Exception as ml_error:
+                logger.error(f"ML search failed, falling back to database search: {ml_error}")
+        
+        return db_result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch products: {str(e)}")
 
@@ -219,6 +258,77 @@ async def search_by_image(file: UploadFile = File(...)):
             message="Image search service is temporarily unavailable",
             error_code="SEARCH_ERROR"
         )
+
+# Helper functions for merging search results
+def _apply_filters_to_products(products: List[ProductResponse], filters: ProductFilters) -> List[ProductResponse]:
+    """Apply filters to a list of products (excluding search filter)"""
+    filtered_products = []
+    
+    for product in products:
+        # Apply filters
+        if filters.gender and product.gender != filters.gender:
+            continue
+        if filters.category and product.category != filters.category:
+            continue
+        if filters.sub_category and product.sub_category != filters.sub_category:
+            continue
+        if filters.product_type and product.product_type != filters.product_type:
+            continue
+        if filters.colour and product.colour != filters.colour:
+            continue
+        if filters.min_price is not None and product.price < filters.min_price:
+            continue
+        if filters.max_price is not None and product.price > filters.max_price:
+            continue
+        if filters.in_stock is not None and product.in_stock != filters.in_stock:
+            continue
+        
+        filtered_products.append(product)
+    
+    return filtered_products
+
+def _merge_search_results(ml_products: List[ProductResponse], db_products: List[ProductResponse]) -> List[ProductResponse]:
+    """Merge ML search results with database search results, prioritizing ML results"""
+    # Create a set of ML product IDs for quick lookup
+    ml_product_ids = {product.id for product in ml_products}
+    
+    # Start with ML products (they have similarity scores)
+    merged_products = ml_products.copy()
+    
+    # Add database products that are not already in ML results
+    for db_product in db_products:
+        if db_product.id not in ml_product_ids:
+            # Set a lower similarity score for database-only results
+            db_product.similarity_score = 0.3
+            merged_products.append(db_product)
+    
+    # Sort by similarity score (descending) to prioritize ML results
+    merged_products.sort(key=lambda x: x.similarity_score or 0, reverse=True)
+    
+    return merged_products
+
+def _paginate_merged_results(products: List[ProductResponse], page: int, page_size: int) -> tuple[List[ProductResponse], PaginationMeta]:
+    """Apply pagination to merged results and return pagination metadata"""
+    total_items = len(products)
+    total_pages = math.ceil(total_items / page_size) if total_items > 0 else 1
+    
+    # Calculate offset
+    offset = (page - 1) * page_size
+    
+    # Get page of products
+    paginated_products = products[offset:offset + page_size]
+    
+    # Create pagination metadata
+    pagination = PaginationMeta(
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_previous=page > 1
+    )
+    
+    return paginated_products, pagination
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
