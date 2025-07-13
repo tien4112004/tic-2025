@@ -10,3 +10,6 @@ requests
 asyncpg
 sqlalchemy[asyncio]
 alembic
+sentence-transformers
+torch
+deep-translator
