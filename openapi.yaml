@@ -1,0 +1,652 @@
+openapi: 3.0.3
+info:
+  title: E-commerce Image Search API
+  description: |
+    API for searching products using image similarity and browsing products with filters.
+    
+    ## Features
+    - **Visual Search**: Upload images to find similar products using AI-powered similarity matching
+    - **Product Catalog**: Browse products with advanced filtering, search, and pagination
+    - **Real-time Status**: Monitor service health and visual search capabilities
+    
+    ## Authentication
+    Currently no authentication required for public endpoints.
+    
+    ## Rate Limiting
+    No rate limiting implemented in current version.
+    
+    ## Error Handling
+    All endpoints return structured error responses with appropriate HTTP status codes.
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://github.com/tien4112004/tic-2025
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.ecommerce.example.com
+    description: Production server
+
+paths:
+  /:
+    get:
+      summary: API Root
+      description: Returns basic API information
+      operationId: getRoot
+      tags:
+        - General
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "E-commerce Image Search API"
+
+  /health:
+    get:
+      summary: Health Check
+      description: Check API health status
+      operationId: healthCheck
+      tags:
+        - General
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+
+  /services/status:
+    get:
+      summary: Services Status
+      description: Get the status of all services including visual search
+      operationId: getServicesStatus
+      tags:
+        - General
+      responses:
+        '200':
+          description: Services status information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_status:
+                    type: string
+                    example: "healthy"
+                  visual_search:
+                    $ref: '#/components/schemas/VisualSearchStatus'
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+
+  /products:
+    get:
+      summary: Get Products
+      description: |
+        Retrieve products with optional filtering, searching, sorting, and pagination.
+        
+        ## Query Parameters
+        - **search**: Search in product names and descriptions
+        - **category**: Filter by product category
+        - **brand**: Filter by brand name
+        - **min_price** / **max_price**: Price range filtering
+        - **in_stock**: Filter by stock availability
+        - **sort_by**: Sort field (name, price, created_at, popularity)
+        - **sort_order**: Sort direction (asc, desc)
+        - **page** / **page_size**: Pagination controls
+      operationId: getProducts
+      tags:
+        - Products
+      parameters:
+        - name: search
+          in: query
+          description: Search query for product name/description
+          required: false
+          schema:
+            type: string
+            example: "smartphone"
+        - name: category
+          in: query
+          description: Filter by category
+          required: false
+          schema:
+            type: string
+            example: "Electronics"
+        - name: brand
+          in: query
+          description: Filter by brand
+          required: false
+          schema:
+            type: string
+            example: "TechCorp"
+        - name: min_price
+          in: query
+          description: Minimum price filter
+          required: false
+          schema:
+            type: number
+            format: decimal
+            minimum: 0
+            example: 10.00
+        - name: max_price
+          in: query
+          description: Maximum price filter
+          required: false
+          schema:
+            type: number
+            format: decimal
+            minimum: 0
+            example: 100.00
+        - name: in_stock
+          in: query
+          description: Filter by stock availability
+          required: false
+          schema:
+            type: boolean
+            example: true
+        - name: sort_by
+          in: query
+          description: Sort field
+          required: false
+          schema:
+            type: string
+            enum: [name, price, created_at, popularity]
+            default: name
+        - name: sort_order
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+        - name: page
+          in: query
+          description: Page number (1-based)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: page_size
+          in: query
+          description: Items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+      responses:
+        '200':
+          description: Products retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /products/categories:
+    get:
+      summary: Get Categories
+      description: Get list of available product categories
+      operationId: getCategories
+      tags:
+        - Products
+      responses:
+        '200':
+          description: Available categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
+
+  /products/brands:
+    get:
+      summary: Get Brands
+      description: Get list of available product brands
+      operationId: getBrands
+      tags:
+        - Products
+      responses:
+        '200':
+          description: Available brands
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  brands:
+                    type: array
+                    items:
+                      type: string
+                    example: ["TechCorp", "FashionPlus", "HomeStyle", "BookWorld", "SportMax", "BeautyBest"]
+
+  /search/image:
+    post:
+      summary: Visual Search
+      description: |
+        Search for similar products using image similarity.
+        
+        ## How it works
+        1. Upload an image file (JPEG, PNG, GIF, etc.)
+        2. The API extracts visual features using AI models
+        3. Similar products are found using vector similarity search
+        4. Results are ranked by similarity score
+        
+        ## Supported formats
+        - JPEG, PNG, GIF, BMP, TIFF
+        - Maximum file size: 10MB
+        - Recommended dimensions: 224x224 or larger
+        
+        ## Response
+        Returns a list of similar products with full product details.
+      operationId: searchByImage
+      tags:
+        - Visual Search
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file to search for similar products
+              required:
+                - file
+            examples:
+              image_upload:
+                summary: Upload product image
+                description: Example of uploading a product image for similarity search
+      responses:
+        '200':
+          description: Similar products found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+              examples:
+                similar_products:
+                  summary: Example search results
+                  value:
+                    - id: "PROD001"
+                      product_id: "PROD001"
+                      name: "Men's Blue Casual Shirt"
+                      price: 29.99
+                      image_url: "https://example.com/images/prod001_main.jpg"
+                      category: "Apparel"
+                      brand: "FashionPlus"
+                      in_stock: true
+                      similarity_score: 0.95
+        '400':
+          description: Invalid image file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_file_type:
+                  summary: Invalid file type
+                  value:
+                    error: "INVALID_IMAGE"
+                    message: "File must be an image (JPEG, PNG, GIF, etc.)"
+                    status_code: 400
+                file_too_large:
+                  summary: File too large
+                  value:
+                    error: "INVALID_IMAGE"
+                    message: "Image file too large. Maximum size is 10MB."
+                    status_code: 400
+        '500':
+          description: Search service error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ProductResponse:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - image_url
+        - category
+        - brand
+        - in_stock
+      properties:
+        id:
+          type: string
+          description: Unique product identifier (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        product_id:
+          type: string
+          description: Original product ID from dataset
+          example: "PROD001"
+        name:
+          type: string
+          description: Product name/title
+          example: "Men's Blue Casual Shirt"
+        price:
+          type: number
+          format: decimal
+          description: Product price
+          example: 29.99
+        image_url:
+          type: string
+          format: uri
+          description: Primary product image URL
+          example: "https://example.com/images/prod001_main.jpg"
+        description:
+          type: string
+          nullable: true
+          description: Product description
+          example: "Comfortable cotton casual shirt perfect for everyday wear"
+        category:
+          type: string
+          nullable: true
+          description: Product category
+          example: "Apparel"
+        sub_category:
+          type: string
+          nullable: true
+          description: Product subcategory
+          example: "Topwear"
+        product_type:
+          type: string
+          nullable: true
+          description: Specific product type
+          example: "Shirts"
+        colour:
+          type: string
+          nullable: true
+          description: Product color
+          example: "Blue"
+        usage:
+          type: string
+          nullable: true
+          description: Product usage context
+          example: "Casual"
+        gender:
+          type: string
+          nullable: true
+          description: Target gender
+          enum: [Men, Women, Unisex, Kids, Baby]
+          example: "Men"
+        brand:
+          type: string
+          nullable: true
+          description: Product brand
+          example: "FashionPlus"
+        in_stock:
+          type: boolean
+          description: Stock availability
+          default: true
+          example: true
+        similarity_score:
+          type: number
+          format: float
+          nullable: true
+          description: Similarity score (for visual search results)
+          minimum: 0
+          maximum: 1
+          example: 0.95
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Product creation timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    ProductListResponse:
+      type: object
+      required:
+        - products
+        - pagination
+        - filters_applied
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductResponse'
+          description: List of products for current page
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+        filters_applied:
+          $ref: '#/components/schemas/ProductFilters'
+
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - page_size
+        - total_items
+        - total_pages
+        - has_next
+        - has_previous
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        page_size:
+          type: integer
+          description: Items per page
+          example: 20
+        total_items:
+          type: integer
+          description: Total number of items
+          example: 100
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 5
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        has_previous:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+
+    ProductFilters:
+      type: object
+      properties:
+        search:
+          type: string
+          nullable: true
+          description: Search query applied
+          example: "smartphone"
+        category:
+          type: string
+          nullable: true
+          description: Category filter applied
+          example: "Electronics"
+        brand:
+          type: string
+          nullable: true
+          description: Brand filter applied
+          example: "TechCorp"
+        min_price:
+          type: number
+          format: decimal
+          nullable: true
+          description: Minimum price filter applied
+          example: 10.00
+        max_price:
+          type: number
+          format: decimal
+          nullable: true
+          description: Maximum price filter applied
+          example: 100.00
+        in_stock:
+          type: boolean
+          nullable: true
+          description: Stock filter applied
+          example: true
+        sort_by:
+          type: string
+          enum: [name, price, created_at, popularity]
+          description: Sort field applied
+          example: "name"
+        sort_order:
+          type: string
+          enum: [asc, desc]
+          description: Sort order applied
+          example: "asc"
+        page:
+          type: integer
+          description: Current page
+          example: 1
+        page_size:
+          type: integer
+          description: Page size
+          example: 20
+
+    VisualSearchStatus:
+      type: object
+      properties:
+        service_name:
+          type: string
+          example: "ImageSearchService"
+        version:
+          type: string
+          example: "1.0.0"
+        initialized:
+          type: boolean
+          description: Whether the service is initialized
+          example: true
+        model_loaded:
+          type: boolean
+          description: Whether the AI model is loaded
+          example: true
+        pinecone_connected:
+          type: boolean
+          description: Whether Pinecone vector database is connected
+          example: true
+        model_name:
+          type: string
+          nullable: true
+          description: Name of the AI model being used
+          example: "clip-ViT-B-32"
+        fallback_mode:
+          type: boolean
+          description: Whether running in fallback mode
+          example: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - status_code
+      properties:
+        error:
+          type: string
+          description: Error code/type
+          example: "INVALID_IMAGE"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "File must be an image (JPEG, PNG, GIF, etc.)"
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+          nullable: true
+          description: Additional error details
+        status_code:
+          type: integer
+          description: HTTP status code
+          example: 400
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - details
+        - status_code
+      properties:
+        error:
+          type: string
+          example: "Validation Error"
+        message:
+          type: string
+          example: "Invalid request parameters"
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        status_code:
+          type: integer
+          example: 422
+
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          nullable: true
+          description: Field name that caused the error
+          example: "page"
+        message:
+          type: string
+          description: Detailed error message
+          example: "ensure this value is greater than or equal to 1"
+        code:
+          type: string
+          nullable: true
+          description: Error code
+          example: "value_error.number.not_ge"
+
+tags:
+  - name: General
+    description: General API endpoints for health checks and status
+  - name: Products
+    description: Product catalog browsing with filters and search
+  - name: Visual Search
+    description: AI-powered image similarity search
