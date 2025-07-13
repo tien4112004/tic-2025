@@ -107,14 +107,19 @@ def main():
     if test_endpoint("Get Brands", "GET", f"{BASE_URL}/products/brands"):
         success_count += 1
     
-    # Test 11: Image search with valid image
+    # Test 11: Visual search service status
+    total_tests += 1
+    if test_endpoint("Visual Search Service Status", "GET", f"{BASE_URL}/services/status"):
+        success_count += 1
+    
+    # Test 12: Image search with valid image
     total_tests += 1
     test_image = create_test_image()
     files = {'file': ('test.jpg', test_image, 'image/jpeg')}
-    if test_endpoint("Image Search", "POST", f"{BASE_URL}/search/image", files=files):
+    if test_endpoint("Image Search (Visual)", "POST", f"{BASE_URL}/search/image", files=files):
         success_count += 1
     
-    # Test 12: Image search with invalid file type
+    # Test 13: Image search with invalid file type
     total_tests += 1
     text_file = io.StringIO("This is not an image")
     files = {'file': ('test.txt', text_file, 'text/plain')}
@@ -127,7 +132,7 @@ def main():
     else:
         print(f"   ❌ Should have rejected invalid file")
     
-    # Test 13: Invalid query parameters
+    # Test 14: Invalid query parameters
     total_tests += 1
     response = requests.get(f"{BASE_URL}/products?page=0")  # Invalid page number
     print(f"\n🧪 Testing Invalid Parameters...")

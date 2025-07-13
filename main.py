@@ -17,7 +17,7 @@ from models.product import (
     SortOrder
 )
 from models.errors import ErrorResponse, ValidationErrorResponse, ErrorDetail
-from services.image_search import ImageSearchService
+from services.image_search_service import ImageSearchService
 from services.product_service import ProductService
 from services.exceptions import APIError, ValidationError, InvalidImageError, NotFoundError
 
@@ -93,6 +93,27 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/services/status")
+async def get_services_status():
+    """Get the status of all services including visual search."""
+    from datetime import datetime
+    try:
+        search_status = image_search_service.get_search_service_status()
+        logger.info("Service status requested")
+        return {
+            "api_status": "healthy",
+            "visual_search": search_status,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting service status: {e}")
+        return {
+            "api_status": "healthy",
+            "visual_search": {"error": str(e)},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 
 @app.get("/products", response_model=ProductListResponse)
 async def get_products(

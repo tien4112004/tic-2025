@@ -24,7 +24,10 @@ services:
 
   # FastAPI Application
   api:
-    build: .
+    build: 
+      context: .
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     container_name: ecommerce_api
     environment:
       - DATABASE_URL=postgresql://ecommerce_user:ecommerce_password@postgres:5432/ecommerce_db
