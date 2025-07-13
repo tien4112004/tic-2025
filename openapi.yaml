@@ -103,8 +103,11 @@ paths:
         
         ## Query Parameters
         - **search**: Search in product names and descriptions
+        - **gender**: Filter by target gender
         - **category**: Filter by product category
-        - **brand**: Filter by brand name
+        - **sub_category**: Filter by product subcategory
+        - **product_type**: Filter by product type
+        - **colour**: Filter by product colour
         - **min_price** / **max_price**: Price range filtering
         - **in_stock**: Filter by stock availability
         - **sort_by**: Sort field (name, price, created_at, popularity)
@@ -121,6 +124,14 @@ paths:
           schema:
             type: string
             example: "smartphone"
+        - name: gender
+          in: query
+          description: Filter by gender
+          required: false
+          schema:
+            type: string
+            enum: [Men, Women, Unisex]
+            example: "Men"
         - name: category
           in: query
           description: Filter by category
@@ -128,13 +139,27 @@ paths:
           schema:
             type: string
             example: "Electronics"
-        - name: brand
+        - name: sub_category
           in: query
-          description: Filter by brand
+          description: Filter by subcategory
           required: false
           schema:
             type: string
-            example: "TechCorp"
+            example: "Smartphones"
+        - name: product_type
+          in: query
+          description: Filter by product type
+          required: false
+          schema:
+            type: string
+            example: "Gadget"
+        - name: colour
+          in: query
+          description: Filter by colour
+          required: false
+          schema:
+            type: string
+            example: "Black"
         - name: min_price
           in: query
           description: Minimum price filter
@@ -236,26 +261,89 @@ paths:
                       type: string
                     example: ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
 
-  /products/brands:
+  /products/genders:
     get:
-      summary: Get Brands
-      description: Get list of available product brands
-      operationId: getBrands
+      summary: Get Genders
+      description: Get list of available gender options
+      operationId: getGenders
       tags:
         - Products
       responses:
         '200':
-          description: Available brands
+          description: Available genders
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  brands:
+                  genders:
                     type: array
                     items:
                       type: string
-                    example: ["TechCorp", "FashionPlus", "HomeStyle", "BookWorld", "SportMax", "BeautyBest"]
+                    example: ["Men", "Women", "Unisex"]
+
+  /products/subcategories:
+    get:
+      summary: Get Subcategories
+      description: Get list of available product subcategories
+      operationId: getSubcategories
+      tags:
+        - Products
+      responses:
+        '200':
+          description: Available subcategories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subcategories:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
+
+  /products/product-types:
+    get:
+      summary: Get Product Types
+      description: Get list of available product types
+      operationId: getProductTypes
+      tags:
+        - Products
+      responses:
+        '200':
+          description: Available product types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product_types:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
+
+  /products/colours:
+    get:
+      summary: Get Colours
+      description: Get list of available product colours
+      operationId: getColours
+      tags:
+        - Products
+      responses:
+        '200':
+          description: Available colours
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  colours:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Black", "White", "Blue", "Red", "Green", "Gray"]
 
   /search/image:
     post:
@@ -314,8 +402,11 @@ paths:
                       name: "Men's Blue Casual Shirt"
                       price: 29.99
                       image_url: "https://example.com/images/prod001_main.jpg"
-                      category: "Apparel"
-                      brand: "FashionPlus"
+                      category: "Clothing"
+                      gender: "Men"
+                      sub_category: "T-Shirts"
+                      product_type: "Apparel"
+                      colour: "Blue"
                       in_stock: true
                       similarity_score: 0.95
         '400':
@@ -353,8 +444,6 @@ components:
         - name
         - price
         - image_url
-        - category
-        - brand
         - in_stock
       properties:
         id:
@@ -388,38 +477,28 @@ components:
           type: string
           nullable: true
           description: Product category
-          example: "Apparel"
-        sub_category:
-          type: string
-          nullable: true
-          description: Product subcategory
-          example: "Topwear"
-        product_type:
-          type: string
-          nullable: true
-          description: Specific product type
-          example: "Shirts"
-        colour:
-          type: string
-          nullable: true
-          description: Product color
-          example: "Blue"
-        usage:
-          type: string
-          nullable: true
-          description: Product usage context
-          example: "Casual"
+          example: "Electronics"
         gender:
           type: string
           nullable: true
           description: Target gender
-          enum: [Men, Women, Unisex, Kids, Baby]
+          enum: [Men, Women, Unisex]
           example: "Men"
-        brand:
+        sub_category:
           type: string
           nullable: true
-          description: Product brand
-          example: "FashionPlus"
+          description: Product subcategory
+          example: "Smartphones"
+        product_type:
+          type: string
+          nullable: true
+          description: Specific product type
+          example: "Gadget"
+        colour:
+          type: string
+          nullable: true
+          description: Product colour
+          example: "Black"
         in_stock:
           type: boolean
           description: Stock availability
@@ -500,16 +579,31 @@ components:
           nullable: true
           description: Search query applied
           example: "smartphone"
+        gender:
+          type: string
+          nullable: true
+          description: Gender filter applied
+          example: "Men"
         category:
           type: string
           nullable: true
           description: Category filter applied
           example: "Electronics"
-        brand:
+        sub_category:
           type: string
           nullable: true
-          description: Brand filter applied
-          example: "TechCorp"
+          description: Subcategory filter applied
+          example: "Smartphones"
+        product_type:
+          type: string
+          nullable: true
+          description: Product type filter applied
+          example: "Gadget"
+        colour:
+          type: string
+          nullable: true
+          description: Colour filter applied
+          example: "Black"
         min_price:
           type: number
           format: decimal

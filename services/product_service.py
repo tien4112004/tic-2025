@@ -17,6 +17,12 @@ class ProductService:
         # Mock implementation for now - replace with actual API calls
         mock_products = []
         
+        genders = ["Men", "Women", "Unisex"]
+        categories = ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
+        sub_categories = ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
+        product_types = ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
+        colours = ["Black", "White", "Blue", "Red", "Green", "Gray"]
+        
         for i, product_id in enumerate(product_ids):
             product = ProductResponse(
                 id=product_id,
@@ -24,8 +30,11 @@ class ProductService:
                 price=Decimal("29.99"),
                 image_url="https://example.com/product.jpg",
                 description=f"Description for {product_id}",
-                category="Electronics",
-                brand="Sample Brand",
+                category=categories[i % len(categories)],
+                gender=genders[i % len(genders)],
+                sub_category=sub_categories[i % len(sub_categories)],
+                product_type=product_types[i % len(product_types)],
+                colour=colours[i % len(colours)],
                 in_stock=True,
                 similarity_score=0.95 - (i * 0.05)
             )
@@ -74,13 +83,25 @@ class ProductService:
                    (p.description and search_term in p.description.lower())
             ]
         
+        # Gender filter
+        if filters.gender:
+            filtered = [p for p in filtered if p.gender == filters.gender]
+        
         # Category filter
         if filters.category:
             filtered = [p for p in filtered if p.category == filters.category]
         
-        # Brand filter
-        if filters.brand:
-            filtered = [p for p in filtered if p.brand == filters.brand]
+        # Sub-category filter
+        if filters.sub_category:
+            filtered = [p for p in filtered if p.sub_category == filters.sub_category]
+        
+        # Product type filter
+        if filters.product_type:
+            filtered = [p for p in filtered if p.product_type == filters.product_type]
+        
+        # Colour filter
+        if filters.colour:
+            filtered = [p for p in filtered if p.colour == filters.colour]
         
         # Price filters
         if filters.min_price is not None:
@@ -115,7 +136,10 @@ class ProductService:
     
     def _generate_mock_products(self) -> List[ProductResponse]:
         categories = ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
-        brands = ["TechCorp", "FashionPlus", "HomeStyle", "BookWorld", "SportMax", "BeautyBest"]
+        genders = ["Men", "Women", "Unisex"]
+        sub_categories = ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
+        product_types = ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
+        colours = ["Black", "White", "Blue", "Red", "Green", "Gray"]
         
         products = []
         for i in range(1, 101):  # Generate 100 mock products
@@ -126,7 +150,10 @@ class ProductService:
                 image_url=f"https://example.com/product_{i}.jpg",
                 description=f"High quality product {i} with excellent features and performance",
                 category=categories[i % len(categories)],
-                brand=brands[i % len(brands)],
+                gender=genders[i % len(genders)],
+                sub_category=sub_categories[i % len(sub_categories)],
+                product_type=product_types[i % len(product_types)],
+                colour=colours[i % len(colours)],
                 in_stock=i % 7 != 0,  # Some products out of stock
                 created_at=f"2024-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}T10:00:00Z"
             )

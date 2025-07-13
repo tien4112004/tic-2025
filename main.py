@@ -118,8 +118,11 @@ async def get_services_status():
 @app.get("/products", response_model=ProductListResponse)
 async def get_products(
     search: Optional[str] = Query(None, description="Search query for product name/description"),
+    gender: Optional[str] = Query(None, description="Filter by gender"),
     category: Optional[str] = Query(None, description="Filter by category"),
-    brand: Optional[str] = Query(None, description="Filter by brand"),
+    sub_category: Optional[str] = Query(None, description="Filter by subcategory"),
+    product_type: Optional[str] = Query(None, description="Filter by product type"),
+    colour: Optional[str] = Query(None, description="Filter by colour"),
     min_price: Optional[Decimal] = Query(None, description="Minimum price filter"),
     max_price: Optional[Decimal] = Query(None, description="Maximum price filter"),
     in_stock: Optional[bool] = Query(None, description="Filter by stock availability"),
@@ -130,8 +133,11 @@ async def get_products(
 ):
     filters = ProductFilters(
         search=search,
+        gender=gender,
         category=category,
-        brand=brand,
+        sub_category=sub_category,
+        product_type=product_type,
+        colour=colour,
         min_price=min_price,
         max_price=max_price,
         in_stock=in_stock,
@@ -153,10 +159,28 @@ async def get_categories():
         "categories": ["Electronics", "Clothing", "Home & Garden", "Books", "Sports", "Beauty"]
     }
 
-@app.get("/products/brands")
-async def get_brands():
+@app.get("/products/genders")
+async def get_genders():
     return {
-        "brands": ["TechCorp", "FashionPlus", "HomeStyle", "BookWorld", "SportMax", "BeautyBest"]
+        "genders": ["Men", "Women", "Unisex"]
+    }
+
+@app.get("/products/subcategories")
+async def get_subcategories():
+    return {
+        "subcategories": ["Smartphones", "T-Shirts", "Furniture", "Fiction", "Fitness", "Skincare"]
+    }
+
+@app.get("/products/product-types")
+async def get_product_types():
+    return {
+        "product_types": ["Gadget", "Apparel", "Accessory", "Book", "Equipment", "Cosmetic"]
+    }
+
+@app.get("/products/colours")
+async def get_colours():
+    return {
+        "colours": ["Black", "White", "Blue", "Red", "Green", "Gray"]
     }
 
 @app.post("/search/image", response_model=List[ProductResponse])
