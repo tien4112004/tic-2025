@@ -1,8 +1,11 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 import uvicorn
 from typing import List, Optional
 import os
+import logging
 from dotenv import load_dotenv
 from decimal import Decimal
 
@@ -13,8 +16,14 @@ from models.product import (
     SortBy, 
     SortOrder
 )
+from models.errors import ErrorResponse, ValidationErrorResponse, ErrorDetail
 from services.image_search import ImageSearchService
 from services.product_service import ProductService
+from services.exceptions import APIError, ValidationError, InvalidImageError, NotFoundError
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -23,6 +32,48 @@ app = FastAPI(
     description="API for searching products using image similarity and browsing products with filters",
     version="1.0.0"
 )
+
+# Global exception handlers
+@app.exception_handler(APIError)
+async def api_error_handler(request: Request, exc: APIError):
+    logger.error(f"API Error: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.detail
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        errors.append(ErrorDetail(
+            field=".".join(str(loc) for loc in error["loc"]),
+            message=error["msg"],
+            code=error["type"]
+        ).dict())
+    
+    response = ValidationErrorResponse(
+        message="Invalid request parameters",
+        details=errors
+    )
+    
+    logger.warning(f"Validation Error: {response.dict()}")
+    return JSONResponse(
+        status_code=422,
+        content=response.dict()
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unexpected error: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(
+            error="Internal Server Error",
+            message="An unexpected error occurred",
+            status_code=500
+        ).dict()
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,20 +140,45 @@ async def get_brands():
 
 @app.post("/search/image", response_model=List[ProductResponse])
 async def search_by_image(file: UploadFile = File(...)):
+    # Validate file type
     if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+        raise InvalidImageError("File must be an image (JPEG, PNG, GIF, etc.)")
+    
+    # Validate file size (max 10MB)
+    if file.size and file.size > 10 * 1024 * 1024:
+        raise InvalidImageError("Image file too large. Maximum size is 10MB.")
     
     try:
         contents = await file.read()
         
+        # Validate file is not empty
+        if not contents:
+            raise InvalidImageError("Image file is empty")
+        
+        logger.info(f"Processing image search for file: {file.filename}, size: {len(contents)} bytes")
+        
         product_ids = await image_search_service.search_similar_products(contents)
+        
+        if not product_ids:
+            logger.info("No similar products found")
+            return []
         
         products = await product_service.get_products_by_ids(product_ids)
         
+        logger.info(f"Found {len(products)} similar products")
         return products
         
+    except InvalidImageError:
+        raise
+    except ValueError as e:
+        raise InvalidImageError(str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        logger.error(f"Unexpected error in image search: {str(e)}", exc_info=True)
+        raise APIError(
+            status_code=500,
+            message="Image search service is temporarily unavailable",
+            error_code="SEARCH_ERROR"
+        )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

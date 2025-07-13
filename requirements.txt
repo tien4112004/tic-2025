@@ -6,3 +6,7 @@ pinecone-client
 pillow
 httpx
 python-dotenv
+requests
+asyncpg
+sqlalchemy[asyncio]
+alembic
